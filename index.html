@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEO 3.1 Video Generation Pipeline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 40px;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+        
+        .step::after {
+            content: '↓';
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: #00d9ff;
+        }
+        
+        .step:last-of-type::after {
+            display: none;
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #00d9ff, #00ff88);
+            color: #1a1a2e;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        .step-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .step-badge {
+            background: rgba(0, 217, 255, 0.2);
+            color: #00d9ff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-left: auto;
+        }
+        
+        .step-content {
+            color: #a8b2d1;
+            line-height: 1.6;
+        }
+        
+        .warning-box {
+            background: rgba(255, 193, 7, 0.15);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        
+        .warning-box .icon {
+            color: #ffc107;
+            margin-right: 8px;
+        }
+        
+        .warning-box strong {
+            color: #ffc107;
+        }
+        
+        .code-box {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .code-box .comment {
+            color: #6a737d;
+        }
+        
+        .code-box .command {
+            color: #79c0ff;
+        }
+        
+        .code-box .flag {
+            color: #ff7b72;
+        }
+        
+        .clips-flow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .clip-box {
+            background: linear-gradient(135deg, #2d3748, #1a202c);
+            border: 2px solid #4a5568;
+            border-radius: 12px;
+            padding: 16px 20px;
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .clip-box.final {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+        
+        .clip-box .label {
+            font-size: 0.85rem;
+            color: #a0aec0;
+            margin-bottom: 4px;
+        }
+        
+        .clip-box .name {
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .clip-box .duration {
+            font-size: 0.8rem;
+            color: #00d9ff;
+            margin-top: 4px;
+        }
+        
+        .arrow {
+            font-size: 24px;
+            color: #00d9ff;
+        }
+        
+        .extension-diagram {
+            background: #0d1117;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .ext-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            gap: 8px;
+        }
+        
+        .ext-label {
+            width: 80px;
+            font-size: 0.85rem;
+            color: #8892b0;
+        }
+        
+        .ext-bar {
+            height: 30px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .ext-bar.base { background: #3182ce; width: 80px; }
+        .ext-bar.ext1 { background: #38a169; width: 140px; }
+        .ext-bar.ext2 { background: #d69e2e; width: 140px; }
+        
+        .cost-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .cost-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .cost-card.recommended {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.05);
+        }
+        
+        .cost-card h4 {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .cost-card.recommended h4::after {
+            content: '✓ RECOMMENDED';
+            font-size: 0.7rem;
+            background: #00ff88;
+            color: #1a1a2e;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        .cost-card ul {
+            list-style: none;
+            color: #a8b2d1;
+            font-size: 0.9rem;
+        }
+        
+        .cost-card ul li {
+            padding: 4px 0;
+        }
+        
+        .cost-card ul li::before {
+            content: '•';
+            color: #00d9ff;
+            margin-right: 8px;
+        }
+        
+        .summary-box {
+            background: linear-gradient(135deg, rgba(0, 217, 255, 0.1), rgba(0, 255, 136, 0.1));
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 30px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        
+        .summary-box h3 {
+            color: #00ff88;
+            margin-bottom: 16px;
+        }
+        
+        .summary-box ol {
+            color: #a8b2d1;
+            padding-left: 20px;
+        }
+        
+        .summary-box ol li {
+            padding: 6px 0;
+        }
+        
+        .output-box {
+            background: linear-gradient(135deg, #00ff88, #00d9ff);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .output-box h3 {
+            color: #1a1a2e;
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+        
+        .output-box p {
+            color: #1a1a2e;
+            opacity: 0.8;
+        }
+
+        @media print {
+            body {
+                background: #1a1a2e;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 VEO 3.1 Video Generation Pipeline</h1>
+            <p>Complete workflow for generating AI videos with custom audio</p>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">Plan Optimization</div>
+                <div class="step-badge">Algorithm</div>
+            </div>
+            <div class="step-content">
+                <p>Calculate optimal clip distribution to minimize excess duration.</p>
+                <div class="code-box">
+                    <span class="comment">// Input: 18 seconds target</span><br>
+                    <span class="command">planificarVideoOptimizado</span>(18)<br><br>
+                    <span class="comment">// Output: 4s base + 2 extensions (7s each) = 18s exact</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">Prompt Generation</div>
+                <div class="step-badge">Gemini 2.0</div>
+            </div>
+            <div class="step-content">
+                <p>AI analyzes narrative text and generates cinematic visual prompts in English.</p>
+                <div class="code-box">
+                    <span class="comment">// Input text (any language)</span><br>
+                    "la familia es muy importante para el desarrollo..."<br><br>
+                    <span class="comment">// Output: Cinematic prompts</span><br>
+                    → "Wide shot of sun-drenched kitchen, family at table..."<br>
+                    → "Close-up on daughter's face, thoughtful expression..."<br>
+                    → "Medium shot panning across family, warm smiles..."
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">Video Generation</div>
+                <div class="step-badge">VEO 3.1</div>
+            </div>
+            <div class="step-content">
+                <div class="warning-box">
+                    <span class="icon">⚠️</span>
+                    <strong>VEO 3.1 always generates audio by default.</strong><br>
+                    After multiple tests: <code>generateAudio: false</code> is NOT supported.<br>
+                    <code>negativePrompt</code> does NOT prevent audio generation.
+                </div>
+                
+                <div class="clips-flow">
+                    <div class="clip-box">
+                        <div class="label">BASE</div>
+                        <div class="name">clip_1.mp4</div>
+                        <div class="duration">4s + 🔊</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="clip-box">
+                        <div class="label">EXTEND</div>
+                        <div class="name">clip_2.mp4</div>
+                        <div class="duration">11s + 🔊</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="clip-box final">
+                        <div class="label">EXTEND (FINAL)</div>
+                        <div class="name">clip_3.mp4</div>
+                        <div class="duration">18s + 🔊</div>
+                    </div>
+                </div>
+
+                <div class="extension-diagram">
+                    <p style="color: #8892b0; margin-bottom: 12px; font-size: 0.9rem;">Extension mechanism - each clip contains ALL previous content:</p>
+                    <div class="ext-row">
+                        <span class="ext-label">Clip 1:</span>
+                        <div class="ext-bar base">4s</div>
+                    </div>
+                    <div class="ext-row">
+                        <span class="ext-label">Clip 2:</span>
+                        <div class="ext-bar base">4s</div>
+                        <div class="ext-bar ext1">+7s</div>
+                    </div>
+                    <div class="ext-row">
+                        <span class="ext-label">Clip 3:</span>
+                        <div class="ext-bar base">4s</div>
+                        <div class="ext-bar ext1">+7s</div>
+                        <div class="ext-bar ext2">+7s</div>
+                        <span style="color: #00ff88; margin-left: 12px;">= 18s total ✓</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Remove VEO Audio</div>
+                <div class="step-badge">FFmpeg</div>
+            </div>
+            <div class="step-content">
+                <p>Strip unwanted VEO-generated audio from the final clip.</p>
+                <div class="code-box">
+                    <span class="command">ffmpeg</span> <span class="flag">-i</span> clip_3.mp4 <span class="flag">-an</span> <span class="flag">-c:v copy</span> clip_noaudio.mp4<br><br>
+                    <span class="comment"># -an: Remove all audio streams</span><br>
+                    <span class="comment"># -c:v copy: Copy video without re-encoding (INSTANT)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">Add Custom Audio</div>
+                <div class="step-badge">FFmpeg</div>
+            </div>
+            <div class="step-content">
+                <p>Merge silent video with custom narration audio.</p>
+                <div class="code-box">
+                    <span class="command">ffmpeg</span> <span class="flag">-i</span> clip_noaudio.mp4 <span class="flag">-i</span> audio.mp3 \<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="flag">-map 0:v -map 1:a</span> <span class="flag">-c:v copy -c:a aac</span> \<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="flag">-t 18 -shortest</span> clip_final.mp4
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost Comparison -->
+        <h3 style="margin: 30px 0 20px; color: #00d9ff;">💰 Cost Comparison</h3>
+        <div class="cost-comparison">
+            <div class="cost-card">
+                <h4>AWS MediaConvert</h4>
+                <ul>
+                    <li>~$0.015 per minute of output</li>
+                    <li>Additional costs for HD/4K</li>
+                    <li>Per-job overhead costs</li>
+                    <li>Requires video re-encoding</li>
+                </ul>
+            </div>
+            <div class="cost-card recommended">
+                <h4>FFmpeg on AWS VM</h4>
+                <ul>
+                    <li>$0 additional cost (existing VM)</li>
+                    <li>No video re-encoding needed</li>
+                    <li>Processing time: < 1 second</li>
+                    <li>Uses -c:v copy (instant)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-box">
+            <h3>📋 Key Findings</h3>
+            <ol>
+                <li>VEO 3.1 generates audio by default - <strong>cannot be disabled via API</strong></li>
+                <li>After testing multiple approaches, the only solution is <strong>post-processing with FFmpeg</strong></li>
+                <li>FFmpeg on existing AWS VM is <strong>more cost-effective</strong> than MediaConvert</li>
+                <li>Using <code>-c:v copy</code> means <strong>no video re-encoding</strong> = instant processing</li>
+                <li>Total audio processing time: <strong>< 2 seconds per video</strong></li>
+            </ol>
+        </div>
+
+        <!-- Output -->
+        <div class="output-box">
+            <h3>✨ Final Output: clip_final.mp4</h3>
+            <p>18 seconds • AI-generated cinematic video • Custom narration audio</p>
+        </div>
+    </div>
+</body>
+</html>
+
